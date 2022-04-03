@@ -1,6 +1,6 @@
-from excursion.sampler import *
+from excursion.sampler import SampleGenerator, RandomChoice
 from excursion.models import ExcursionModel, SKLearnGP
-from excursion.acquisition import *
+from excursion.acquisition import SKPES, AcquisitionFunction
 from excursion.excursion import ExcursionProblem, ExcursionResult
 
 # # move this into the excursion result, unless we add scikit learn implementation # #
