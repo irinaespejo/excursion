@@ -1,5 +1,5 @@
 from excursion import *
-from excursion.optimizer.builders import *
+from excursion.optimizer.builders import build_model, build_acquisition_func
 import torch
 import numpy as np
 
