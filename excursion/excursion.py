@@ -54,8 +54,13 @@ class ExcursionResult(object):
             train_X = model.X_train_
             train_y = model.y_train_
             mean, variance = model.predict(X_pointsgrid, return_std=True)
+        elif model.device == 'cpu':
+            train_X = model.X_train_
+            train_y = model.y_train_
+            prediction = model(X_pointsgrid)
+            mean, variance = prediction.mean, prediction.variance
         else:
-            raise NotImplementedError("Only supports device type 'skcpu'")
+            raise NotImplementedError("Only supports device type 'skcpu' and 'cpu")
         if log:
             self.acq_vals.append(acq_vals)
             self.mean.append(mean)
