@@ -24,18 +24,18 @@ likelihood:
 #model
 model:
   # Options: GridGP or ExactGP or SKLearnGP
-  type: 'SKLearnGP'
+  type: 'ExactGP'
   # Options: 'Adam' or 'LBFGS'. Method to use for fitting model hyperparameters to new training data. Default: 'None'
   # will use the default method of the given ExcursionModel. (e.g. GPyTorchGP default is Adam)
   fit_optimizer: 'Adam'
-#  kernel: 'RBF'
-#  prior: 'Constant'
+  kernel: 'RBF'
+  mean: 'Constant'
 
 
 #acquisition function
 acq:
   # Options: PES or MES
-  acq_type: pes
+  acq_type: mes
 #  batch: False
 #  batchtype: 'KB'
 #  batchsize: 12
@@ -52,7 +52,7 @@ jump_start: true
 
 #Device type: 'cpu', 'cuda', 'auto', 'skcpu'
 # 'auto' will only select the gpytorch b/w gpytorch implementations
-device: 'skcpu'
+device: 'cpu'
 
 # dtype auto selects np or torch float64
 dtype: float64
