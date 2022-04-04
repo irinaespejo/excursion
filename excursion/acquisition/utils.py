@@ -1,6 +1,9 @@
 import numpy as np
 from scipy.linalg import cho_solve
 from scipy.stats import norm
+from torch.distributions import Normal
+from torch import Tensor
+from torch import logsumexp, log
 
 
 def approx_mi_vec(mu, cov, thresholds):
@@ -74,3 +77,30 @@ def info_gain(x_candidate, gp, thresholds, meanX):
     mi[~np.isfinite(mi)] = 0.0
 
     return -np.mean(mi)
+
+
+def entropy(x_candidate, gp, thresholds, meanX):
+    # compute predictive posterior of Y(x) | train data
+    likelihood = gp.likelihood
+    gp.eval()
+    likelihood.eval()
+    Y_pred_candidate = likelihood(gp(x_candidate))
+
+    normal_candidate = Normal(
+        loc=Y_pred_candidate.mean, scale=Y_pred_candidate.variance ** 0.5
+    )
+
+    # entropy of S(x_candidate)
+    entropy_candidate = Tensor([0.0]) 
+
+    for j in range(len(thresholds) - 1):
+        # p(S(x)=j)
+        p_j = normal_candidate.cdf(thresholds[j + 1]) - normal_candidate.cdf(
+            thresholds[j]
+        )
+
+        if p_j > 0.0:
+            entropy_candidate -= logsumexp(p_j, 0) * logsumexp(log(p_j), 0)
+
+    return entropy_candidate.detach()  
+    

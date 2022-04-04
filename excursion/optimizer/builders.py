@@ -1,6 +1,6 @@
 from excursion.sampler import SampleGenerator, RandomChoice
-from excursion.models import ExcursionModel, SKLearnGP
-from excursion.acquisition import SKPES, AcquisitionFunction
+from excursion.models import ExcursionModel, SKLearnGP, ExactGP
+from excursion.acquisition import SKPES, GPMES, AcquisitionFunction
 from excursion.excursion import ExcursionProblem, ExcursionResult
 
 # # move this into the excursion result, unless we add scikit learn implementation # #
@@ -9,9 +9,12 @@ from excursion.excursion import ExcursionProblem, ExcursionResult
 def build_result(details: ExcursionProblem, acquisition, **kwargs):
     if kwargs['device'] == 'skcpu':
         X_pointsgrid = details.X_pointsgrid
+        true_y = details.functions[0](X_pointsgrid)   
+    elif kwargs['device'] == 'cpu':
+        X_pointsgrid = details.X_pointsgrid
         true_y = details.functions[0](X_pointsgrid)
     else:
-        raise NotImplementedError("Only supports device 'SKCPU'")
+        raise NotImplementedError("Only supports device 'SKCPU' and 'CPU")
 
     acquisition = acquisition # What if they passed in their own acq, then there is no string here.
     return ExcursionResult(ndim=details.ndim, thresholds=details.thresholds, true_y=true_y,
@@ -65,7 +68,7 @@ def build_acquisition_func(acq_function: str or AcquisitionFunction, **kwargs):
         acq_function = "PES"
     elif isinstance(acq_function, str):
         acq_function = acq_function.lower()
-        allowed_acq_funcs = ["pes"]
+        allowed_acq_funcs = ["pes", "mes"]
         if acq_function not in allowed_acq_funcs:
             raise ValueError("Valid strings for the acq_function parameter "
                              " are: %s, not %s." % (",".join(allowed_acq_funcs), acq_function))
@@ -75,12 +78,14 @@ def build_acquisition_func(acq_function: str or AcquisitionFunction, **kwargs):
     if isinstance(acq_function, str):
         if acq_function == "pes":
             acq_function = SKPES()
+        elif acq_function == "mes":
+            acq_function = GPMES()
     acq_function.set_params(**kwargs)
 
     return acq_function
 
 
-def build_model(model: str or ExcursionModel, rangedef, **kwargs):
+def build_model(model: str or ExcursionModel, **kwargs):
     """
     Build an acquisition function.
     For the special acq_function called "random" the return value is None.
@@ -96,17 +101,30 @@ def build_model(model: str or ExcursionModel, rangedef, **kwargs):
         model = "sklearngp"
     elif isinstance(model, str):
         model = model.lower()
-        allowed_models = ["sklearngp"]
+        allowed_models = ["sklearngp", "exactgp"]
         if model not in allowed_models:
-            raise ValueError("Valid strings for the model parameter are: 'SKLearnGP' not %s." % model)
+            raise ValueError("Valid strings for the model parameter are: 'SKLearnGP' and 'ExactGP not %s." % model)
     elif not isinstance(model, ExcursionModel):
         raise TypeError("model has to be an ExcursionModel or str. Got %s" % (str(type(model))))
 
     if isinstance(model, str):
         if model == "sklearngp":
-            model = SKLearnGP(ndim=len(rangedef))
+            model = SKLearnGP(ndim=len(kwargs['rangedef']))
+            model.set_params(**kwargs)
+            
+        elif model == "exactgp":
+            train_x = kwargs['train_x']
+            train_y = kwargs['train_y']
+            likelihood = kwargs['likelihood']
+            mean = kwargs['mean']
+            kernel = kwargs['kernel']
+            fit_optimizer = kwargs['fit_optimizer']
+            model = ExactGP(train_x, train_y, likelihood, mean, kernel, fit_optimizer)
+            print('kwargs ', kwargs)
+            params = {'device': kwargs['device'], 'dtype': kwargs['dtype']}
+            model.set_params(**params)
 
-    model.set_params(**kwargs)
+    
 
     return model
 

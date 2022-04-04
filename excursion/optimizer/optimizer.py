@@ -1,5 +1,6 @@
 from ._optimizer import _Optimizer
-from .builders import *
+from .builders import build_acquisition_func, build_model, build_sampler, build_result
+from ..excursion import ExcursionResult, ExcursionProblem
 import numpy as np
 
 class Optimizer(_Optimizer):
@@ -95,7 +96,7 @@ class Optimizer(_Optimizer):
     # Some helpers for the initializer. Handles error checking
     #
     def _check_and_set_device_dtype(self):
-        allowed_devices = ['skcpu']
+        allowed_devices = ['skcpu', 'cpu']
         device = self.device_dtype['device']
         if not isinstance(device, str):
             raise TypeError("Expected device is type str, got %s" % type(device))
@@ -122,8 +123,8 @@ class Optimizer(_Optimizer):
     def _check_and_set_search_space(self, details):
         _thresholds = [-np.inf] + details.thresholds + [np.inf]
         _X_pointsgrid = details.X_pointsgrid
-        if self.device_dtype['device'] != 'skcpu':
-            raise NotImplementedError("Only device type 'skcpu' is supported")
+        if self.device_dtype['device'] != 'skcpu' and self.device_dtype['device'] != 'cpu':
+            raise NotImplementedError("Only device type 'skcpu' and 'cpu' is supported")
         self._search_space['thresholds'] = _thresholds
         self._search_space['X_pointsgrid'] = _X_pointsgrid
         self._search_space['ndim'] = details.ndim
@@ -156,7 +157,13 @@ class Optimizer(_Optimizer):
         # Configure private initial_point_generator
         self._point_sampler = build_sampler(initial_point_generator)
         self._initial_samples = None
-
+        if jump_start:
+            self._n_initial_points = 0
+            x = self._point_sampler.generate(self.n_initial_points_, self._search_space['X_pointsgrid'])
+            y = problem_details.functions[0](x)
+        else:
+            self._initial_samples = self._point_sampler.generate(self.n_initial_points_,
+                                                                     self._search_space['X_pointsgrid'])
 
 
         # These will store the result, but if the base_model was None, then this will also be None
@@ -177,25 +184,19 @@ class Optimizer(_Optimizer):
         # If it was None, then tell will return a None result and behavior will be just asking for random points
         if self.base_model is not None:
             base_model_kwargs.update(self.device_dtype)
-            self._model = build_model(self.base_model, rangedef=problem_details.rangedef, **base_model_kwargs)
+            self._model = build_model(self.base_model, rangedef=problem_details.rangedef,  train_x=x, train_y=y, fit_optimizer=fit_optimizer, **base_model_kwargs)
 
             # for now self.acq_func is a string, so this COULD add a string to the name of the graph of plotted result
             self.result = build_result(problem_details, self.acq_func, **self.device_dtype)
             self.acq_func = build_acquisition_func(self.acq_func)
 
-            # If I want to add all init points in a batch
-            if jump_start:
-                self._n_initial_points = 0
-                x = self._point_sampler.generate(self.n_initial_points_, self._search_space['X_pointsgrid'])
-                y = problem_details.functions[0](x)
-                self._model.update_model(x, y)
-                self.fit()
+            # incorporate init data           
+            self._model.update_model(x, y)
+            self.fit()
 
-                # Build the result if we want to plot the initial state.
-                self.result.update_result(self._model, None, None, self._search_space['X_pointsgrid'], log=self.log)
-            else:
-                self._initial_samples = self._point_sampler.generate(self.n_initial_points_,
-                                                                     self._search_space['X_pointsgrid'])
+            # Build the result if we want to plot the initial state.
+            self.result.update_result(self._model, None, None, self._search_space['X_pointsgrid'], log=self.log)
+            
 
     def ask(self, n_points=None, batch_kwarg={}):
         """Query point or multiple points at which objective should be evaluated.
