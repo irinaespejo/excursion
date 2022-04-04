@@ -1,6 +1,6 @@
 import sklearn
 from .base import ExcursionModel
-from .utils import get_kernel
+from .utils import get_kernel_sklearn
 import numpy as np
 
 
@@ -9,7 +9,7 @@ class SKLearnGP(ExcursionModel, sklearn.gaussian_process.GaussianProcessRegresso
     gaussian process.
     """
     def __init__(self, ndim, kernel_type='const_rbf', alpha=10**-7):
-        kernel = get_kernel(ndim, kernel_type)
+        kernel = get_kernel_sklearn(ndim, kernel_type)
         self.gp_params = {
             'alpha': alpha,
             'n_restarts_optimizer': 10,
